@@ -248,7 +248,6 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 3e872e3a3d9fb944d8393a0786b29222, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  sceneCamera: {fileID: 0}
   contentRoot: {fileID: 8379689054773548328}
   sections:
   - {fileID: 4890528324854370474}
@@ -277,7 +276,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 0
+  m_IsActive: 1
 --- !u!4 &8884937708594891306
 Transform:
   m_ObjectHideFlags: 0
@@ -288,7 +287,7 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
   m_LocalPosition: {x: 0, y: 0, z: 0.2}
-  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_LocalScale: {x: 7, y: 21, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 8379689054773548328}
@@ -440,11 +439,11 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 6715361411620238045, guid: 1e23e2e050fab5c4884ae0159aa20fd5, type: 3}
       propertyPath: m_LocalPosition.x
-      value: 2
+      value: 7
       objectReference: {fileID: 0}
     - target: {fileID: 6715361411620238045, guid: 1e23e2e050fab5c4884ae0159aa20fd5, type: 3}
       propertyPath: m_LocalPosition.y
-      value: 1
+      value: -10
       objectReference: {fileID: 0}
     - target: {fileID: 6715361411620238045, guid: 1e23e2e050fab5c4884ae0159aa20fd5, type: 3}
       propertyPath: m_LocalPosition.z
@@ -498,11 +497,11 @@ PrefabInstance:
     m_Modifications:
     - target: {fileID: 1170066392562684809, guid: 85b1b34b7faebb24babd69ae6e1a9307, type: 3}
       propertyPath: m_LocalPosition.x
-      value: -2
+      value: -6
       objectReference: {fileID: 0}
     - target: {fileID: 1170066392562684809, guid: 85b1b34b7faebb24babd69ae6e1a9307, type: 3}
       propertyPath: m_LocalPosition.y
-      value: -1
+      value: -10
       objectReference: {fileID: 0}
     - target: {fileID: 1170066392562684809, guid: 85b1b34b7faebb24babd69ae6e1a9307, type: 3}
       propertyPath: m_LocalPosition.z

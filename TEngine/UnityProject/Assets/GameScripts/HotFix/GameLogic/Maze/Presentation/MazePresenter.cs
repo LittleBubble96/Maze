@@ -122,9 +122,7 @@ namespace GameLogic.Maze
         }
         private void ShowTeaching()
         {
-            int id = _session.Game.Map.Id;
-            _screen.SetMessage(id == 1 ? "向右滑动，再向上，最后向右到紫色目标\n这一关不需要折叠" : id == 2 ? "点击折叠，让断开的道路接起来" :
-                id == 3 ? "跨过接缝后，再展开寻找新路线" : id == 4 ? "在不同位置尝试折叠和展开" : "经过紫色出口即可通关");
+            _screen.SetMessage("在非按钮区域按住滑动，可连续转向\n折叠浅色区域，连接底部断路，到达紫色目标");
         }
         private void ShowSelection()
         {

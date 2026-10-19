@@ -8,7 +8,8 @@ namespace GameLogic.Maze
     [Serializable]
     public sealed class MazeLevelData
     {
-        public int id = 1, version = 1, seed, generatorVersion = 1;
+        public int id = 1, version = 1;
+        public string title = "手工关卡", designNotes = "";
         public int rows = 7, columns = 9, foldColumn = 4, foldWidth = 1;
         public int start, exit;
         public bool initialFolded, tutorial;

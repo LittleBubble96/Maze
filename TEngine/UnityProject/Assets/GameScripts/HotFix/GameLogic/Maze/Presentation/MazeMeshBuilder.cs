@@ -32,37 +32,55 @@ namespace GameLogic.Maze
                 if (i > 0) Triangle(start,start+i,start+i+1);
             }
         }
-        private void InnerCorner(Vector2 centre, float half,float radius,int sx,int sy)
+        // Quarter-cell polygons keep straight edges exactly on grid boundaries.
+        private void RoadQuarter(Vector2 p, int sx, int sy, bool round)
         {
-            int start = _vertices.Count; _vertices.Add(centre + new Vector2(sx*half,sy*half));
-            for (int i=0;i<=4;i++)
+            const float h=.5f, radius=.16f;
+            if(!round)
+            {
+                Quad(p+new Vector2(sx<0?-h:0,sy<0?-h:0),p+new Vector2(sx<0?0:h,sy<0?0:h));
+                return;
+            }
+            int start=_vertices.Count;
+            _vertices.Add(p);
+            _vertices.Add(p+new Vector2(sx*h,0));
+            for(int i=0;i<=4;i++)
             {
                 float a=i*Mathf.PI*.5f/4;
-                _vertices.Add(centre+new Vector2(sx*(half+radius-radius*Mathf.Cos(a)),sy*(half+radius-radius*Mathf.Sin(a))));
-                if(i>0) Triangle(start,start+i,start+i+1);
+                _vertices.Add(p+new Vector2(sx*(h-radius+radius*Mathf.Cos(a)),sy*(h-radius+radius*Mathf.Sin(a))));
+            }
+            _vertices.Add(p+new Vector2(0,sy*h));
+            for(int i=start+2;i<_vertices.Count;i++)Triangle(start,i-1,i);
+        }
+        private void WallFillet(Vector2 p,int sx,int sy)
+        {
+            const float h=.5f,r=.16f;
+            int start=_vertices.Count;
+            _vertices.Add(p+new Vector2(sx*h,sy*h));
+            for(int i=0;i<=4;i++)
+            {
+                float a=i*Mathf.PI*.5f/4;
+                _vertices.Add(p+new Vector2(sx*(h-r+r*Mathf.Cos(a)),sy*(h-r+r*Mathf.Sin(a))));
+                if(i>0)Triangle(start,start+i,start+i+1);
             }
         }
         public static Vector2 Position(MazeMap map,int cell) => new Vector2(cell%map.Columns-(map.Columns-1)*.5f,(map.Rows-1)*.5f-cell/map.Columns);
-        public static Mesh Board(MazeMap map,int section,bool folded = false)
+        public static Mesh Board(MazeMap map,int section)
         {
-            var b=new MazeMeshBuilder(); const float h=.36f;
+            var b=new MazeMeshBuilder();
             for(int cell=0;cell<map.Count;cell++)
             {
-                if(!map.IsRoad(cell)||map.Section(cell)!=section) continue;
-                Vector2 p=Position(map,cell); b.Disk(p,h,16);
+                if(map.Section(cell)!=section)continue;
+                Vector2 p=Position(map,cell);
                 int row=cell/map.Columns,col=cell%map.Columns;
-                bool l=col>0&&map.IsRoad(cell-1), r=col+1<map.Columns&&map.IsRoad(cell+1);
-                bool u=row>0&&map.IsRoad(cell-map.Columns), d=row+1<map.Rows&&map.IsRoad(cell+map.Columns);
-                if(folded&&section==0&&col==map.FoldColumn-1) r=map.IsRoad(cell+map.FoldWidth+1);
-                if(folded&&section==2&&col==map.FoldColumn+map.FoldWidth) l=map.IsRoad(cell-map.FoldWidth-1);
-                if(l)b.Quad(p+new Vector2(-.5f,-h),p+new Vector2(0,h));
-                if(r)b.Quad(p+new Vector2(0,-h),p+new Vector2(.5f,h));
-                if(u)b.Quad(p+new Vector2(-h,0),p+new Vector2(h,.5f));
-                if(d)b.Quad(p+new Vector2(-h,-.5f),p+new Vector2(h,0));
-                if(l&&u)b.InnerCorner(p,h,.12f,-1,1);
-                if(r&&u)b.InnerCorner(p,h,.12f,1,1);
-                if(l&&d)b.InnerCorner(p,h,.12f,-1,-1);
-                if(r&&d)b.InnerCorner(p,h,.12f,1,-1);
+                for(int sx=-1;sx<=1;sx+=2)
+                    for(int sy=-1;sy<=1;sy+=2)
+                    {
+                        bool horizontal=col+sx>=0&&col+sx<map.Columns&&map.IsRoad(cell+sx);
+                        bool vertical=row-sy>=0&&row-sy<map.Rows&&map.IsRoad(cell-sy*map.Columns);
+                        if(map.IsRoad(cell))b.RoadQuarter(p,sx,sy,!horizontal&&!vertical);
+                        else if(horizontal&&vertical&&map.IsRoad(cell+sx-sy*map.Columns))b.WallFillet(p,sx,sy);
+                    }
             }
             return b.Finish("MazeSection"+section);
         }

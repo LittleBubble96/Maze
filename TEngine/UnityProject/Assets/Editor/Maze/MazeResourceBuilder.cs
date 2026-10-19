@@ -23,6 +23,46 @@ namespace PaperFold.Editor
         {
             if(EditorApplication.isPlayingOrWillChangePlaymode)return;
             if(!File.Exists(ScenePath)||!File.Exists(HudPath)||!File.Exists(FontPath))Build();
+            else SyncAuthoredMap();
+        }
+        // Update only authored map resources; preserve user changes to cameras, UI and token prefabs.
+        [MenuItem("Tools/PaperFold/同步手工关卡场景资源")]
+        public static void SyncAuthoredMap()
+        {
+            if(EditorApplication.isPlayingOrWillChangePlaymode)return;
+            const string catalogPath="Assets/AssetRaw/Configs/MazeCampaign.json";
+            if(!File.Exists(catalogPath))return;
+            string json=File.ReadAllText(catalogPath);
+            string signature=Hash128.Compute("grid-corners-v3|"+json).ToString();
+            const string stamp="Library/MazeAuthoredMap.signature";
+            if(File.Exists(stamp)&&File.ReadAllText(stamp)==signature)return;
+            var catalog=JsonUtility.FromJson<MazeCampaignData>(json);
+            if(catalog?.levels==null||catalog.levels.Length==0)return;
+            string error=MazeLevelValidator.Validate(catalog.levels[0]);
+            if(error!=null){Debug.LogError("[PaperFold] "+error);return;}
+            var map=new MazeMap(catalog.levels[0]);
+            var root=PrefabUtility.LoadPrefabContents(ScenePath);
+            try
+            {
+                var content=root.transform.Find("Map");
+                string[] names={"Left","Middle","Right"};
+                int vertices=0;
+                for(int i=0;i<3;i++)
+                {
+                    var mesh=MazeMeshBuilder.Board(map,i);vertices+=mesh.vertexCount;
+                    content.Find(names[i]).GetComponent<MeshFilter>().sharedMesh=StoreMesh("TutorialSection"+i,mesh);
+                }
+                var fold=content.Find("FoldRegion");fold.gameObject.SetActive(true);
+                fold.localPosition=new Vector3(map.FoldColumn+(map.FoldWidth-1)*.5f-(map.Columns-1)*.5f,0,.2f);
+                fold.localScale=new Vector3(map.FoldWidth,map.Rows,1);
+                content.Find("Ball").localPosition=(Vector3)MazeMeshBuilder.Position(map,map.Start)+Vector3.back*.3f;
+                content.Find("Goal").localPosition=(Vector3)MazeMeshBuilder.Position(map,map.Exit)+Vector3.back*.15f;
+                PrefabUtility.SaveAsPrefabAsset(root,ScenePath);
+                AssetDatabase.SaveAssets();ValidateAssets();
+                File.WriteAllText("../Tests/maze-scene-validation.txt",$"PASS: hand-authored {map.Columns}x{map.Rows}; 3 immutable road meshes; {vertices} vertices; separate scene/UI assets.");
+                File.WriteAllText(stamp,signature);
+            }
+            finally{PrefabUtility.UnloadPrefabContents(root);}
         }
         [MenuItem("Tools/PaperFold/构建场景与UI资源")]
         public static void Build()
@@ -34,7 +74,7 @@ namespace PaperFold.Editor
             var road=Material("Road",new Color(.98f,.99f,.96f));
             var ball=Material("Ball",new Color(.08f,.43f,.86f));
             var goal=Material("Goal",new Color(.59f,.28f,.86f));
-            var shade=Material("FoldRegion",new Color(0,.58f,.53f));
+            var shade=Material("FoldRegion",new Color(0,.66f,.60f));
             var hint=Material("Hint",new Color(1,.61f,.13f));
             var disk=new MazeMeshBuilder();disk.Disk(Vector2.zero,.22f,32);var ballMesh=StoreMesh("Ball",disk.Finish("Ball"));
             var target=new MazeMeshBuilder();target.Disk(Vector2.zero,.3f,32);var goalMesh=StoreMesh("Goal",target.Finish("Goal"));
@@ -45,10 +85,11 @@ namespace PaperFold.Editor
             try
             {
                 var content=new GameObject("Map").transform;content.SetParent(root.transform,false);content.gameObject.layer=30;
-                var map=new MazeMap(FoldMazeGenerator.FirstTutorial());
+                var catalog=JsonUtility.FromJson<MazeCampaignData>(File.ReadAllText("Assets/AssetRaw/Configs/MazeCampaign.json"));
+                var map=new MazeMap(catalog.levels[0]);
                 var parts=new MeshFilter[3];
                 for(int i=0;i<3;i++)parts[i]=MeshObject(new[]{"Left","Middle","Right"}[i],content,StoreMesh("TutorialSection"+i,MazeMeshBuilder.Board(map,i)),road);
-                var fold=MeshObject("FoldRegion",content,quadMesh,shade).transform;fold.localPosition=new Vector3(0,0,.2f);fold.gameObject.SetActive(false);
+                var fold=MeshObject("FoldRegion",content,quadMesh,shade).transform;fold.localPosition=new Vector3(map.FoldColumn+(map.FoldWidth-1)*.5f-(map.Columns-1)*.5f,0,.2f);fold.localScale=new Vector3(map.FoldWidth,map.Rows,1);
                 var ballInstance=(GameObject)PrefabUtility.InstantiatePrefab(ballPrefab,content);ballInstance.name="Ball";ballInstance.transform.localPosition=(Vector3)MazeMeshBuilder.Position(map,map.Start)+Vector3.back*.3f;
                 var goalInstance=(GameObject)PrefabUtility.InstantiatePrefab(goalPrefab,content);goalInstance.name="Goal";goalInstance.transform.localPosition=(Vector3)MazeMeshBuilder.Position(map,map.Exit)+Vector3.back*.15f;
                 var view=root.AddComponent<MazeSceneView>();
@@ -113,7 +154,7 @@ namespace PaperFold.Editor
                 var scaler=root.GetComponent<CanvasScaler>();scaler.uiScaleMode=CanvasScaler.ScaleMode.ScaleWithScreenSize;scaler.referenceResolution=new Vector2(720,1280);scaler.matchWidthOrHeight=1;
                 var panel=Rect("Panel",root.transform,Vector2.zero,new Vector2(720,1280));
                 Text("Title",panel,new Vector2(0,480),new Vector2(640,70),40,"第 1 关",font);
-                Text("Status",panel,new Vector2(0,380),new Vector2(640,140),26,"向右滑动，再向上，最后向右到紫色目标\n这一关不需要折叠",font);
+                Text("Status",panel,new Vector2(0,380),new Vector2(640,140),26,"在非按钮区域按住滑动，可连续转向\n折叠浅色区域，连接底部断路，到达紫色目标",font);
                 var props=Rect("Props",panel,Vector2.zero,new Vector2(720,1280));
                 Button("Fold","折叠",props,new Vector2(0,-360),new Vector2(330,76),font);
                 Button("Hint","提示（免费）",props,new Vector2(-170,-470),new Vector2(280,72),font);

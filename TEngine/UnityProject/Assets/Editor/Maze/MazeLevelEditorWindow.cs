@@ -7,14 +7,14 @@ using UnityEngine;
 
 namespace PaperFold.Editor
 {
-    /// <summary>Authoring uses exactly the same map, solver and generator as HotFix.</summary>
+    /// <summary>Authoring uses exactly the same map and solver as HotFix.</summary>
     public sealed class MazeLevelEditorWindow : EditorWindow
     {
         private const string CatalogPath = "Assets/AssetRaw/Configs/MazeCampaign.json";
         private MazeCampaignData _campaign;
-        private int _selected, _seed = 20261019, _switches = 1, _paint;
+        private int _selected, _paint;
         private bool _folded, _dirty;
-        private string _message = "先读取目录，或使用种子生成关卡。";
+        private string _message = "从关卡列表选择关卡，手动绘制道路并校验。";
         private Vector2 _scroll;
         [MenuItem("Tools/PaperFold/迷宫关卡编辑器")]
         public static void Open() { GetWindow<MazeLevelEditorWindow>("迷宫关卡").minSize = new Vector2(650,740); }
@@ -22,13 +22,13 @@ namespace PaperFold.Editor
         private void Load()
         {
             if (File.Exists(CatalogPath)) _campaign = JsonUtility.FromJson<MazeCampaignData>(File.ReadAllText(CatalogPath));
-            if (_campaign?.levels == null) _campaign = new MazeCampaignData { levels = new MazeLevelData[12] };
+            if (_campaign?.levels == null) _campaign = new MazeCampaignData { levels = new[] { new MazeLevelData { cells = new int[63], start=0, exit=8 } } };
             _selected = Mathf.Clamp(_selected, 0, _campaign.levels.Length - 1); _dirty = false;
         }
         private void OnGUI()
         {
             _scroll = EditorGUILayout.BeginScrollView(_scroll);
-            EditorGUILayout.LabelField("PaperFold · 自动生成 / 编辑 / 校验", EditorStyles.boldLabel);
+            EditorGUILayout.LabelField("PaperFold · 手动搭关 / 关卡列表 / 校验", EditorStyles.boldLabel);
             EditorGUILayout.HelpBox("修改的是地图数据，不是视图对象。发布前必须校验可解性；预览不写玩家存档。", MessageType.Info);
             using (new EditorGUILayout.HorizontalScope())
             {
@@ -36,25 +36,18 @@ namespace PaperFold.Editor
                 if (GUILayout.Button("校验全部")) ValidateAll();
                 if (GUILayout.Button("保存目录")) Save();
             }
-            int selection = EditorGUILayout.IntSlider("关卡", _selected + 1, 1, _campaign.levels.Length) - 1;
+            EditorGUILayout.LabelField("关卡列表", EditorStyles.boldLabel);
+            var labels = new string[_campaign.levels.Length];
+            for(int i=0;i<labels.Length;i++)labels[i]=$"{i+1:00}  {_campaign.levels[i]?.title}";
+            int selection = GUILayout.SelectionGrid(_selected, labels, 1);
             if (_selected != selection) { _selected = selection; _folded = false; }
-            _seed = EditorGUILayout.IntField("生成种子", _seed);
-            _switches = EditorGUILayout.IntSlider("最少必要切换", _switches, 0, 5);
-            if (GUILayout.Button("生成当前关（固定种子，可重复）"))
-            {
-                try
-                {
-                    var old = _campaign.levels[_selected];
-                    var generated = FoldMazeGenerator.Generate(_selected + 1, _seed, _switches);
-                    generated.version = (old?.version ?? 0) + 1;
-                    _campaign.levels[_selected] = generated; _dirty = true; ValidateCurrent();
-                }
-                catch (Exception error) { _message = error.Message; }
-            }
             var level = _campaign.levels[_selected];
             if (level != null)
             {
                 EditorGUI.BeginChangeCheck();
+                level.title = EditorGUILayout.TextField("关卡名称", level.title);
+                EditorGUILayout.LabelField("设计意图 / 卡点 / 解法");
+                level.designNotes = EditorGUILayout.TextArea(level.designNotes, GUILayout.MinHeight(60));
                 level.version = EditorGUILayout.IntField("内容版本（改图后递增）", level.version);
                 level.tutorial = EditorGUILayout.Toggle("教学关", level.tutorial);
                 level.initialFolded = EditorGUILayout.Toggle("初始折叠", level.initialFolded);
@@ -62,7 +55,7 @@ namespace PaperFold.Editor
                 level.foldWidth = EditorGUILayout.IntSlider("折叠列数", level.foldWidth, 1, level.columns - level.foldColumn - 1);
                 if (EditorGUI.EndChangeCheck()) _dirty = true;
                 _folded = EditorGUILayout.Toggle("预览折叠状态", _folded);
-                _paint = GUILayout.Toolbar(_paint, new[] { "道路 / 墙", "设置起点", "设置出口" });
+                _paint = GUILayout.Toolbar(_paint, new[] { "画道路", "画墙", "设置起点", "设置出口" });
                 DrawMap(level);
                 using (new EditorGUILayout.HorizontalScope())
                 {
@@ -89,12 +82,14 @@ namespace PaperFold.Editor
                     Color old = GUI.backgroundColor;
                     GUI.backgroundColor = cell == data.start ? Color.cyan : cell == data.exit ? new Color(.7f,.5f,1) :
                         data.cells[cell] == 1 ? (middle ? new Color(.7f,1,.7f) : Color.white) : new Color(.1f,.45f,.4f);
-                    if (GUI.Button(tile, cell == data.start ? "S" : cell == data.exit ? "E" : middle ? "·" : ""))
+                    GUI.Box(tile, cell == data.start ? "S" : cell == data.exit ? "E" : middle ? "·" : "");
+                    var input = Event.current;
+                    if ((input.type == EventType.MouseDown || input.type == EventType.MouseDrag) && input.button == 0 && tile.Contains(input.mousePosition))
                     {
-                        if (_paint == 0) data.cells[cell] = 1 - data.cells[cell];
-                        else if (_paint == 1) { data.start = cell; data.cells[cell] = 1; }
+                        if (_paint < 2) data.cells[cell] = _paint == 0 ? 1 : 0;
+                        else if (_paint == 2) { data.start = cell; data.cells[cell] = 1; }
                         else { data.exit = cell; data.cells[cell] = 1; }
-                        _dirty = true;
+                        _dirty = true; input.Use(); Repaint();
                     }
                     GUI.backgroundColor = old;
                 }
@@ -103,7 +98,7 @@ namespace PaperFold.Editor
         private void ValidateCurrent()
         {
             var data = _campaign.levels[_selected];
-            string error = FoldMazeGenerator.Validate(data);
+            string error = MazeLevelValidator.Validate(data);
             if (error != null) { _message = error; return; }
             var map = new MazeMap(data); var rules = new FoldMazeRules(map);
             var start = new MazeNode(map.Start,map.InitialFolded);
@@ -114,28 +109,22 @@ namespace PaperFold.Editor
             for (int i = 0; i < _campaign.levels.Length; i++)
             {
                 var data = _campaign.levels[i];
-                string error = FoldMazeGenerator.Validate(data);
+                string error = MazeLevelValidator.Validate(data);
                 if (error == null && data.id != i + 1) error = "关卡 ID 顺序不一致";
-                if (error == null && i < 4)
-                {
-                    var map = new MazeMap(data);
-                    if (!data.tutorial || data.initialFolded || new FoldMazeRules(map).MinimumSwitches(new MazeNode(map.Start,false)) != i)
-                        error = "前四关需为展开开局的教学关，并分别至少切换 0、1、2、3 次";
-                }
                 if (error != null) { _message = $"关卡 {i + 1}：{error}"; return false; }
             }
-            _message = "全部关卡通过可解性、道路可逆性及前四关教学校验。"; return true;
+            _message = "全部手工关卡通过可解性与道路可逆性校验。"; return true;
         }
         private void Save()
         {
             if (!ValidateAll()) return;
             File.WriteAllText(CatalogPath, JsonUtility.ToJson(_campaign, true));
-            AssetDatabase.ImportAsset(CatalogPath); _dirty = false; _message = "已保存并导入 YooAsset Configs 目录。";
+            AssetDatabase.ImportAsset(CatalogPath); MazeResourceBuilder.SyncAuthoredMap(); _dirty = false; _message = "已保存并导入 YooAsset Configs 目录。";
         }
         private void Preview(MazeLevelData level)
         {
             if (!EditorApplication.isPlaying) { _message = "请先进入 Play 模式，再点击试玩。"; return; }
-            if (FoldMazeGenerator.Validate(level) != null) { ValidateCurrent(); return; }
+            if (MazeLevelValidator.Validate(level) != null) { ValidateCurrent(); return; }
             var scenePrefab = AssetDatabase.LoadAssetAtPath<GameObject>(MazeResourceBuilder.ScenePath);
             var hudPrefab = AssetDatabase.LoadAssetAtPath<GameObject>(MazeResourceBuilder.HudPath);
             var data = level.Copy(); data.id = 1;

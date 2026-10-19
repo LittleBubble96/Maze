@@ -30,7 +30,7 @@ namespace GameLogic.Maze
         public void Render(FoldMazeGameplay game,bool canSkip,bool locked)
         {
             if(_level!=game.Map.Id){_level=game.Map.Id;_title.text=$"第 {_level} 关";_hintRevision=-1;}
-            _fold.gameObject.SetActive(_level!=1);
+            _fold.gameObject.SetActive(true);
             _skip.gameObject.SetActive(canSkip);
             bool active=!locked&&!Busy&&!game.Dragging&&!game.Completed;
             _fold.interactable=_hint.interactable=_restart.interactable=_skip.interactable=active;

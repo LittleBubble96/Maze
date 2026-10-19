@@ -22,7 +22,7 @@ namespace GameLogic.Maze
             {
                 var data = campaign.levels[i];
                 if (data.id != i + 1) throw new ArgumentException("首版关卡 ID 必须从 1 连续排列");
-                string error = FoldMazeGenerator.Validate(data);
+                string error = MazeLevelValidator.Validate(data);
                 if (error != null) throw new ArgumentException($"关卡 {data.id}: {error}");
                 _catalog.Add(data.id, data.Copy());
             }
@@ -43,10 +43,11 @@ namespace GameLogic.Maze
                 progress = new MazeLevelProgress { map = configured.Copy(), cell = configured.start, folded = configured.initialFolded };
                 Progress.levels.Add(progress);
             }
-            // Keep the exact generated map, not just a seed whose algorithm might change later.
-            if (progress.map.version != configured.version || FoldMazeGenerator.Validate(progress.map) != null)
+            // A published revision replaces cached coordinates; hint usage remains consumed.
+            if (progress.map.version != configured.version || MazeLevelValidator.Validate(progress.map) != null)
             {
                 progress.map = configured.Copy(); progress.cell = configured.start; progress.folded = configured.initialFolded;
+                progress.completed = progress.skipped = false;
             }
             var map = new MazeMap(progress.map);
             Game = new FoldMazeGameplay(map, progress.completed ? new MazeNode(map.Start, map.InitialFolded) :
